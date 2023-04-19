@@ -4,8 +4,12 @@ package project.pharmacy.direction.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 import project.pharmacy.api.dto.DocumentDto;
+import project.pharmacy.api.service.KakaoCategorySearchService;
 import project.pharmacy.direction.entity.Direction;
+import project.pharmacy.direction.repository.DirectionRepository;
 import project.pharmacy.pharmacy.dto.PharmacyDto;
 import project.pharmacy.pharmacy.service.PharmacySearchService;
 import project.pharmacy.pharmacy.service.PharmacyService;
@@ -24,6 +28,15 @@ public class DirectionService {
     private static final int MAX_SEARCH_COUNT = 3;  //약국 최대 검색 갯수
     private static final double RADIUS_KM = 10.0; //반경 10km
     private final PharmacySearchService pharmacySearchService;
+    private final DirectionRepository directionRepository;
+    private final KakaoCategorySearchService kakaoCategorySearchService;
+
+
+    @Transactional
+    public List<Direction> saveAll(List<Direction> directionList){
+        if(CollectionUtils.isEmpty(directionList)) return Collections.emptyList();
+        return directionRepository.saveAll(directionList);
+    }
 
     public List<Direction> buildDirectionList(DocumentDto documentDto){
 
@@ -52,6 +65,29 @@ public class DirectionService {
                 .collect(Collectors.toList());
 
 
+    }
+
+
+    // pharmacy search by category kakao api
+    public List<Direction> buildDirectionListByCategoryApi(DocumentDto inputDocumentDto) {
+        if(Objects.isNull(inputDocumentDto)) return Collections.emptyList();
+
+        return kakaoCategorySearchService
+                .requestPharmacyCategorySearch(inputDocumentDto.getLatitude(), inputDocumentDto.getLongitude(), RADIUS_KM)
+                .getDocumentList()
+                .stream().map(resultDocumentDto ->
+                        Direction.builder()
+                                .inputAddress(inputDocumentDto.getAddressName())
+                                .inputLatitude(inputDocumentDto.getLatitude())
+                                .inputLongitude(inputDocumentDto.getLongitude())
+                                .targetPharmacyName(resultDocumentDto.getPlaceName())
+                                .targetAddress(resultDocumentDto.getAddressName())
+                                .targetLatitude(resultDocumentDto.getLatitude())
+                                .targetLongitude(resultDocumentDto.getLongitude())
+                                .distance(resultDocumentDto.getDistance() * 0.001) // km 단위
+                                .build())
+                .limit(MAX_SEARCH_COUNT)
+                .collect(Collectors.toList());
     }
 
     private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
