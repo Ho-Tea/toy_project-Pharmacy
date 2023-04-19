@@ -8,13 +8,14 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import project.pharmacy.BaseTimeEntity;
 
 @Entity(name = "pharmacy")
 @Getter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Pharmacy {
+public class Pharmacy extends BaseTimeEntity {
 
     @Id @GeneratedValue
     private Long id;
@@ -23,5 +24,9 @@ public class Pharmacy {
     private String pharmacyAddress;
     private double latitude;
     private double longitude;
+
+    public void changeAddress(String address){
+        this.pharmacyAddress = address;
+    }
 
 }
