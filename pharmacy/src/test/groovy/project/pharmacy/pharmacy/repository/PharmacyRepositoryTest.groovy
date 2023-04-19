@@ -21,7 +21,12 @@ class PharmacyRepositoryTest extends AbstractIntegrationContainerBaseTest {
 
         
         // repository에서 의존성 주입을 못받는 이유를 모르겠따
-        def pharmacy = Pharmacy.builder().pharmacyAddress(address).pharmacyName(name).latitude(latitude).longitude(longitude).build()
+        def pharmacy = Pharmacy.builder()
+                .pharmacyAddress(address)
+                .pharmacyName(name)
+                .latitude(latitude)
+                .longitude(longitude)
+                .build()
 
         when:
         def result = pharmacyRepository.save(pharmacy)

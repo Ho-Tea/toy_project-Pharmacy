@@ -1,6 +1,8 @@
 package project.pharmacy
 
+import org.junit.runner.RunWith
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.test.context.junit4.SpringRunner
 import org.testcontainers.containers.GenericContainer
 import spock.lang.Specification
 
