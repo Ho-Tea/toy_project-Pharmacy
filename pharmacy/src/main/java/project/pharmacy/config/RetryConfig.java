@@ -13,6 +13,6 @@ public class RetryConfig {
 //    @Bean
 //    public RetryTemplate retryTemplate(){
 //        return new RetryTemplate();
-//    }
+//    }     이것도 가능하다는 예시
 
 }
