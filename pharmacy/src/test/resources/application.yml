@@ -6,6 +6,10 @@ spring:
     hibernate:
       ddl-auto: create
     show-sql: true
+pharmacy:
+  recommendation:
+    base:
+      url: http://localhost:8080/dir/
 
 kakao:
   rest:
