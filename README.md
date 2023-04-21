@@ -1,4 +1,5 @@
 # 약국 추천 서비스
+- 프로젝트를 진행하면서 배운점들을 기록
 - ### 개발환경 구성
   - JDK 17
   - Spring Boot 3.0.5
@@ -138,7 +139,7 @@
       # Test (application.yml)
       # jdbc: 이후 tc:를 추가하면, host와 port, database name은 무시되며, 
       # testcontainers가 제공해주는 드라이버가 자동으로 처리한다
-      
+
       spring:
         datasource:
           driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
@@ -153,3 +154,230 @@
           api:
             key: ${KAKAO_REST_API_KEY}
       ```
+
+  - ### Mock
+    - Mockito : Mock객체를 쉽게 만들고, 관리하고, 검증할 수 있는 방법을 제공하는 프레임워크.
+    - 실제 객체를 만들어 사용하기에 시간, 비용등의 Cost가 높거나 혹은 객체 서로간의 의존성이 강해<br> 구현하기 힘들 경우 가짜객체를 만들어 사용하는 방법이다
+    - `private PharmacySearchService pharmacySearchService = Mock()`
+
+    - <img src = "image/mock.png">
+
+
+    - **MockWebServer**
+       ``` java
+        //extends를 받음으로 통합테스트환경에서 진행
+        class KakaoAddressSearchServiceRetryTest extends AbstractIntegrationContainerBaseTest {
+
+        @Autowired
+        private KakaoAddressSearchService kakaoAddressSearchService
+
+        // MockWebServer로 띄울 예정인데 kakaoservice는 실제 카카오 uri를 가리키기 때문에
+        //실제 카카오 api를 호출해서 응답값을 받는게 아니라 서버를 Mocking 할 수 있는 MockWebServer를 사용한다
+        //@MockBean -> 스프링 컨테이너 안에 들어있는 빈을 Mocking한다
+        //스프링 컨테이너가 필요하고 빈이 컨테이너안에 존재한다면 @MockBean 사용
+        @SpringBean //-> spock에서 사용한다
+        private KakaoUriBuilderService kakaoUriBuilderService = Mock()
+
+        private MockWebServer mockWebServer
+
+        ...
+      ```
+      ``` groovy
+      def "requestAddressSearch retry success"() {
+        given:
+        def metaDto = new MetaDto(1)
+        def documentDto = DocumentDto.builder()
+                .addressName(inputAddress)
+                .build()
+        def expectedResponse = new KakaoApiResponseDto(metaDto, Arrays.asList(documentDto))
+        def uri = mockWebServer.url("/").uri() // 설정
+
+        when:
+        mockWebServer.enqueue(new MockResponse().setResponseCode(504))
+        mockWebServer.enqueue(new MockResponse().setResponseCode(200)
+                .addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody(mapper.writeValueAsString(expectedResponse)))  // 설정
+
+        def kakaoApiResult = kakaoAddressSearchService.requestAddressSearch(inputAddress)
+        def takeRequest = mockWebServer.takeRequest()
+
+        then:
+        2 * kakaoUriBuilderService.buildUriByAddressSearch(inputAddress) >> uri //Stub
+        takeRequest.getMethod() == "GET"
+        kakaoApiResult.getDocumentList().size() == 1
+        kakaoApiResult.getMetaDto().totalCount == 1
+        kakaoApiResult.getDocumentList().get(0).getAddressName() == inputAddress
+
+        }
+      ```
+
+    - **Mock MVC** (컨트롤러 Layer 테스트 전용)
+      - Web API를 테스트한다는 것은 WAS를 실행해야만 된다는 문제가 있다
+        - 톰캣같은 WAS가 java파일을 컴파일해서 class로 만들고 메모리에 올려 서블릿 객체를 만든다
+      - 컨트롤러를 테스트하고 싶을 때 실제 서버에 구현한 어플리케이션을 올리지 않고(**실제 서블릿 컨테이너를 사용하지 않고**) 테스트용으로 시뮬레이션하는 것
+      - 매번 직접 서버를 띄우고 브라우저를 통해서 테스트하지 않고 테스트 코드를 통해 검증 가능
+      - 웹 환경에서 컨트롤러를 테스트하려면 서블릿 컨테이너가 구동되고 `DispatcherServlet`객체가 메모리에 올라가야 한다. <br> 이때 서블릿 컨테이너를 모킹하면 실제 서블릿 컨테이너가 아닌 테스트 모형 컨테이너를 사용해서 간단하게 컨트롤러를 테스트 할 수 있다
+
+        ``` java
+
+        class FormControllerTest extends Specification {
+
+        private MockMvc mockMvc
+        private PharmacyRecommendationService pharmacyRecommendationService = Mock()
+        private List<OutputDto> outputDtoList
+
+        def setup() {
+          // FormController MockMvc 객체로 만든다.
+          mockMvc = MockMvcBuilders.standaloneSetup(new FormController(pharmacyRecommendationService))
+                .build()
+
+          outputDtoList = new ArrayList<>()
+          outputDtoList.addAll(
+                OutputDto.builder()
+                        .pharmacyName("pharmacy1")
+                        .build(),
+                OutputDto.builder()
+                        .pharmacyName("pharmacy2")
+                        .build()
+          )
+        }
+
+        def "GET /"() {
+
+        expect:
+          // FormController 의 "/" URI를 get방식으로 호출
+          mockMvc.perform(get("/"))
+                .andExpect(handler().handlerType(FormController.class))
+                .andExpect(handler().methodName("main"))
+                .andExpect(status().isOk()) // 예상 값을 검증한다.
+                .andExpect(view().name("main"))
+                .andDo(log())
+        }
+
+        def "POST /search"() {
+
+        given:
+          String inputAddress = "서울 성북구 종암동"
+
+        when:
+          def resultActions = mockMvc.perform(post("/search")
+                .param("address", inputAddress))
+
+        then:
+          1 * pharmacyRecommendationService.recommendPharmacyList(argument -> {
+            assert argument == inputAddress // mock 객체의 argument 검증
+          }) >> outputDtoList
+
+        resultActions
+                .andExpect(status().isOk())
+                .andExpect(view().name("output"))
+                .andExpect(model().attributeExists("outputFormList")) // model에 outputFormList라는 key가 존재하는지 확인
+                .andExpect(model().attribute("outputFormList", outputDtoList))
+                .andDo(print())
+          }
+        }
+        ```
+
+
+  - ### Stub
+    - Stub은 테스트 중에 만들어진 호출에 미리 준비된 답변을 제공하며 <br> 일반적으로 테스트를 위해 프로그래밍된 것 외에는 전혀 응답하지 않습니다.
+    - `pharmacySearchService.searchPharmacyDtoList() >> pharmacyList   //stub (반환값을 지정)` 
+
+
+  - ### @Transactional
+    - `@Transactional`은 **스프링 AOP**기반이며, **스프링 AOP**는 Proxy기반으로 동작한다
+    - `@Transactional`이 포함된 메서드가 호출될 경우, 프록시 객체를 생성하으로써<br> **트랜잭션 생성 및 커밋 또는 롤백** 후 **트랜잭션 닫는 부수적인 작업**을 프록시 객체에게 위임한다
+    - 프록시의 핵심적인 기능은 지정된 메서드가 호출될때 <br> 이 메서드를 가로채어 부가기능 들을 프록시 객체에게 위임한다
+    - 개발자가 메서드에 `@Transactional`만 선언하고, 비즈니스 로직에 집중 가능
+
+      - **Self Invocation 문제**
+        - 스프링 AOP를 기반으로 하는 기능들(`@Transactional`, `@Cacheable`, `@Async`)사용시 발생 가능
+        - 메서드가 호출되는 시점에 프록시 객체를 생성하고,<br> 프록시 객체는 부가기능(트랜잭션)을 주입해 준다
+
+        - <img src = "image/proxy.png">
+
+        - <img src = "image/aop.png">
+
+        - 외부에서 `bar()`메서드를 실행할 때 정상적으로 프록시가 동작한다
+        - 하지만, `@Transactional` 을 `foo()`에만 선언하고 외부에서 `bar()`를 호출하고,<br> `bar() -> foo()` 호출했다고 가정 `bar()`에 `@Transactional`에 관한 설명이 없다면 `Proxy`객체가 생성되지 않는다 <br> **내부호출에 관해서는 Proxy가 동작하지 않는다**
+
+        - **해결방법**
+          1. 트랜잭션 위치를 외부에서 호출 하는 `bar()`메서드로 이동
+          2. 객체의 책임을 최대한 분리하여 외부 호출 하도록 리팩토링
+
+
+  - ### Spring Retry
+    - Spring Retry는 실패한 동작을 자동으로 다시 호출하는 기능을 제공
+    - 일시적인 네트워크 결함과 같이 오류가 일시적일 수 있는 경우에 유용하다
+    - 재처리를 할때 3가지 고려사항
+      1. 재시도를 몇 번 실행할 것인가?
+      2. 재시도 하기 전에 지연시간을 얼마나 줄 것인가?
+      3. 재시도를 모두 실패했을 경우 어떻게 처리할 것인가?
+    - **Retry with annotations** (retry Template을 사용하는 방법도 존재)
+      - Spring Retry를 활성화하려면 `@EnableRetry` 어노테이션 추가
+      ``` java
+      @EnableRetry
+      @Configuration
+      public class RetryConfig{
+        
+      }
+      ```
+      - 재시도 기능을 추가할 메서드 위에 `@Retryable`
+      ``` java
+      @Retryable(
+        value = {Exception.class},
+        maxAttempts = 2,
+        backoff = @Backoff(delay = 2000)
+      )
+      public KakaoApiResponseDto requestAddressSearch(String address) { }
+      ```
+      - `fallback`처리할 수 있는 기능 제공 (모두 실패시) `return Type`을 맞춰주어야 한다, `Parameter`도 사용가능
+      ``` java
+      @Recover
+      public KakaoApiResponseDto recover (Exception e, String address){
+        log.error("All the retries failed address : {}, error : {}", address, e.getMessage());
+        return null;
+      }
+      ```
+
+  - ### Kakao API
+    - 카테고리로 장소 검색하기
+
+      - <img src = "image/kakao1.png">
+
+      - <img src = "image/kakao2.png">
+
+      - <img src = "image/kakao3.png">
+      
+      - <img src = "image/kakao4.png">
+
+      - <img src = "image/kakao5.png">
+
+      - <img src = "image/k1.png">
+
+      - <img src = "image/k2.png">
+      
+
+
+- ## Problem
+  1. spock를 활용한 테스트컨테이너 작성시 `@SpringBootTest`추가와 `Specification`을 상속받음에도 불구하고<br> `Repository`를 `Autowired`하는 것에 실패하여 `null object`가 반환되는 문제가 발생 -> (**해결**)
+    <img src ="image/p.png">
+
+    - `spock`와 `Spring`의 버전차이로 인해 발생한 문제로 판명
+    - `gradle.build`파일
+      ``` groovy
+      //spock
+	    testImplementation('org.spockframework:spock-core:2.4-M1-groovy-4.0')
+	    testImplementation('org.spockframework:spock-spring:2.4-M1-groovy-4.0')
+      ```
+
+
+  2. handlebars 템플릿 엔진을 이용하려고 했으나 `Controller`에서 뷰이름으로 `main.hbs` 파일을 인식하지 못해 화면구성 실패
+    <img src = "image/hand.png">
+
+
+
+
+
+
+- [reference](https://wonyong-jang.github.io/posts/spring/)
