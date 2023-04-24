@@ -4,6 +4,7 @@ package project.pharmacy.pharmacy.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import project.pharmacy.pharmacy.cache.PharmacyRedisTemplateService;
 import project.pharmacy.pharmacy.dto.PharmacyDto;
 import project.pharmacy.pharmacy.entity.Pharmacy;
 
@@ -16,10 +17,15 @@ import java.util.stream.Collectors;
 public class PharmacySearchService {
 
     private final PharmacyService pharmacyService;
+    private final PharmacyRedisTemplateService pharmacyRedisTemplateService;
+
 
     public List<PharmacyDto> searchPharmacyDtoList() {
 
         //redis
+        List<PharmacyDto> pharmacyDtoList = pharmacyRedisTemplateService.findAll();
+        if(!pharmacyDtoList.isEmpty())
+            return pharmacyDtoList;
 
         //db
         return pharmacyService.findAll()
