@@ -31,7 +31,7 @@ dependencies {
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
 	implementation 'pl.allegro.tech.boot:handlebars-spring-boot-starter:0.3.2'
 
@@ -56,6 +56,17 @@ dependencies {
 	testImplementation 'org.testcontainers:mariadb:1.17.1'
 }
 
+
+
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+// gradlew clean build -PKAKAO_REST_API_KEY={api key 값} 명령어로 전체 테스트 및 빌드하여 jar파일 생성
+processTestResources {
+	boolean hasProperty = project.hasProperty("KAKAO_REST_API_KEY")
+	println ("Set KAKAO rest api key : $hasProperty()")
+	filesMatching('**/application.yml') {
+		expand(project.properties)
+	}
 }

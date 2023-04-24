@@ -4,8 +4,15 @@ spring:
     url: jdbc:tc:mariadb:10:///pharmacy-recommendation
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: validate
     show-sql: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+
+
 pharmacy:
   recommendation:
     base:
