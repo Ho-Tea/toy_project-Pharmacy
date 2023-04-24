@@ -4,8 +4,11 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.spockframework.spring.SpringBean
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.http.HttpHeaders
+import org.springframework.http.MediaType
 import org.testcontainers.shaded.com.fasterxml.jackson.databind.ObjectMapper
 import project.pharmacy.AbstractIntegrationContainerBaseTest
+import project.pharmacy.api.dto.DocumentDto
 import project.pharmacy.api.dto.KakaoApiResponseDto
 import project.pharmacy.api.dto.MetaDto
 import spock.lang.Specification
@@ -56,7 +59,7 @@ class KakaoAddressSearchServiceRetryTest extends AbstractIntegrationContainerBas
         def takeRequest = mockWebServer.takeRequest()
 
         then:
-        2 * kakaoUriBuilderService.buildUriByAddressSearch(inputAddress) >> uri
+        2 * kakaoUriBuilderService.builderUriByAddressSearch(inputAddress) >> uri
         takeRequest.getMethod() == "GET"
         kakaoApiResult.getDocumentList().size() == 1
         kakaoApiResult.getMetaDto().totalCount == 1
@@ -76,7 +79,7 @@ class KakaoAddressSearchServiceRetryTest extends AbstractIntegrationContainerBas
         def result = kakaoAddressSearchService.requestAddressSearch(inputAddress)
 
         then:
-        2 * kakaoUriBuilderService.buildUriByAddressSearch(inputAddress) >> uri
+        2 * kakaoUriBuilderService.builderUriByAddressSearch(inputAddress) >> uri
         result == null
     }
 }
