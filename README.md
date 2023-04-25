@@ -356,6 +356,113 @@
       - <img src = "image/k1.png">
 
       - <img src = "image/k2.png">
+
+  - ### Build
+    - `jar`파일을 `build`하는 과정에서 전체 Test코드 또한 검증해 준다
+      - KAKAO_REST_API_KEY를 넣어줄려면 `./gradlew clean build -PKAKAO_REST_API_KEY=fdklsjkldmsal`로 구성하자
+    - (도커 컨테이너가 실행되고 있는 상태여야 한다)
+    ``` groovy
+    //application.yml
+    // gradlew clean build -PKAKAO_REST_API_KEY={api key 값} 명령어로 전체 테스트 및 빌드하여 jar파일 생성
+    processTestResources {
+	  boolean hasProperty = project.hasProperty("KAKAO_REST_API_KEY")
+	  println ("Set KAKAO rest api key : $hasProperty()")
+	  filesMatching('**/application.yml') {
+		  expand(project.properties)
+	  }
+    }
+    ```
+  - ### Redis
+    - Redis는 오픈소스이며, In-Memory 데이터베이스로써 다양한 자료구조(Hash,List)를 제공
+    - 메모리 접근이 디스크 접근보다 빠르기 때문에 데이터베이스(`Mysql`, `Oracle`...)보다 빠르다
+      - 자주사용하는데이터 && 크게 변하지않는(Update가 자주 일어나지 않는) 데이터를 넣어놓는다 -> **성능 이득**
+    
+    - 현상황 : request 마다 약국데이터를 매번 DB에서 조회, 거리계산 알고리즘 계산 및 정렬 후 결과값 반환
+    - 너무 많은 `update`가 일어나는 데이터일 경우, DB와의 `Sync` 비용이 발생
+    - `Redis` 사용시 반드시 `failover`에 대한 고려
+      - 레디스 장애시 데이터베이스에서 조회(디비에서 조회하는 로직을 추가해야 한다)<br> **레디스 이중화 및 백업**
+        ```java
+
+        public List<PharmacyDto> searchPharmacyDtoList() {
+
+        //redis
+        List<PharmacyDto> pharmacyDtoList = pharmacyRedisTemplateService.findAll();
+        if(!pharmacyDtoList.isEmpty())
+            return pharmacyDtoList;
+
+        //db
+        return pharmacyService.findAll()
+                .stream()
+                .map(entity -> convertToPharmacyDto(entity))
+                .collect(Collectors.toList());
+        }
+        ```
+      <img src = "image/redis.png">
+      <img src = "image/redis2.png">
+
+
+
+  - ### 배포
+    - 운영환경에 따라 구분한다
+      - local 서버에서 각자 코드를 만들고 깃허브 등을 이용해 개발자들끼리 dev 서버에서 코드를 합쳐 <br>qa 등 테스트를 충분히 해보고 stg에 올려 실제 기능을 점검,<br> 검증한 뒤 prod(**Production**)로 운영
+    - 지금까지 `redis`와 `database`컨테이너를 띄워두고 `인텔리제이`를 통해 디버깅을 편하게 하면서 개발을 진행할 수 있도록 `스프링`을 띄웠다
+      - 클라우드 서비스에 배포를 할 때는 `인텔리제이`로 띄우는게 아닌 `컨테이너`를 새로 하나 띄운다(**스프링 부트를 띄우기 위해**)
+    - `docker-compose.yml`을 만들어 띄울 컨테이너들을 정의해놓는다(+env파일(환경변수) 내용도 추가)
+      - `SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE}`로 운영환경 종류 선택 가능
+    - `application.yml`파일 내의 운영환경 자세히 정의
+
+      ```groovy
+        spring:
+          config:
+            activate:
+              on-profile: prod
+          datasource:
+            driver-class-name: org.mariadb.jdbc.Driver
+            url: jdbc:mariadb:/pharmacy-recommendation-database:3306 pharmacy-recommendation
+            username: ${SPRING_DATASOURCE_USERNAME}
+            password: ${SPRING_DATASOURCE_PASSWORD}
+          data:
+            redis:
+              host: pharmacy-recommendation-redis
+              port: 6379
+          jpa:
+            hibernate:
+            ddl-auto: validate # prod 배포시 validate
+            show-sql: true
+
+        pharmacy:
+          recommendation:
+            base:
+              url: http://localhost/dir/  #aws ec2 ip 할당 받은 후 변경
+      ```
+    - `Docker File`을 통해 이미지 빌드를 하고 그 이미지를 `컨테이너`로 실행하게 된다
+      - 우선 `source Code`가 변경됐으므로 `./gradlew clean build -PKAKAO_REST_API_KEY=24c117f74786d0e774e7303c22979ad0`로 jar파일을 재 빌드한다
+    - `docker-compose up --build` (docker-compose.yml을 띄운다)
+      - application, database, redis 컨테이너가 띄워진 상태
+      <img src = "image/dockercompose.png">
+
+    - EC2에 도커, 도커 컴포즈를 설치한다
+      <img src = "image/b1.png">
+
+    - Docker Compose파일이 존재하는 소스 내려받기
+      `$ git clone https://github.com/Ho-Tea/toy_project-Pharmacy.git`
+
+    - Docker 환경변수
+      - local에서 개발할 때, DB계정 정보나 외부에 노출되면 안되는 값들을 따로 제외하여 관리하였고<br> 이를 도커 컨테이너를 실행 할때 정달해주어야하는데 이때 .env파일을 사용할 수 있다
+      - `docker-compose`를 사용할 때 .env라는 파일에 환경변수를 사용하면 자동으로 참조하여 사용할 수 있다
+
+        <img src = "image/b2.png">
+
+    - JDK설치 및 jar파일 생성
+
+        <img src = "image/b3.png">
+
+    - Docker이미지 받고 Docker Compose 실행
+
+        <img src = "image/b4.png">
+
+
+
       
 
 
@@ -372,8 +479,14 @@
       ```
 
 
-  2. handlebars 템플릿 엔진을 이용하려고 했으나 `Controller`에서 뷰이름으로 `main.hbs` 파일을 인식하지 못해 화면구성 실패
+  2. handlebars 템플릿 엔진을 이용하려고 했으나 `Controller`에서 뷰이름으로 `main.hbs` 파일을 인식하지 못해 화면구성 실패 -> (미해결)
     <img src = "image/hand.png">
+
+
+  3. 약국 데이터를 셋업하는 과정에서 지속하여 Empty set이 들어가는 현상이 발생 -> (**해결**)
+    <img src = "image/p3.png">
+    - docker-container를 띄우는 과정에서 디렉토리 `/docker-entrypoint-initdb.d/`에 `.sql` 또는 `.sh`파일을 넣어두면 컨테이너 실행 시 시작된다
+    - 이때 `jpa.hibernate.ddl.auto:validate`로 설정해놓아야 한다.
 
 
 
