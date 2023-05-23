@@ -1,5 +1,33 @@
 # 약국 추천 서비스
 - 프로젝트를 진행하면서 배운점들을 기록
+- `handlebars`템플릿엔진으로 진행하면서 어려움을 겪어 `UI` 구성보다는 `API`개발을 위주로 진행하였고 `Postman`으로 확인
+- ### [전체 코드](https://github.com/Ho-Tea/toy_project-Pharmacy/tree/main/pharmacy)
+
+## 목차
+  - [**개발환경**](#개발환경-구성)
+    - [**도커**](#도커)
+    - [**도커 컴포즈**](#도커-컴포즈)
+  - [**Spring Profile**](#spring-profile)
+  - [**Testcontainers**](#testcontainers )
+  - [**Mock**](#mock)
+  - [**Mock MVC**](#mock-MVC-(컨트롤러-layer-테스트-전용))
+  - [**Stub**](#stub)
+  - [**@Transactional**](#@transactional)
+  - [**Spring Retry**](#spring-retry)
+  - [**Kakao API**](#kakao-api)
+  - [**Build**](#build)
+  - [**Redis**](#redis)
+  - [**배포**](#배포)
+  - [**Problem**](#problem)
+
+
+
+
+
+
+------------
+
+
 - ### 개발환경 구성
   - JDK 17
   - Spring Boot 3.0.5
@@ -211,7 +239,7 @@
         }
       ```
 
-    - **Mock MVC** (컨트롤러 Layer 테스트 전용)
+    - ### Mock MVC (컨트롤러 Layer 테스트 전용)
       - Web API를 테스트한다는 것은 WAS를 실행해야만 된다는 문제가 있다
         - 톰캣같은 WAS가 java파일을 컴파일해서 class로 만들고 메모리에 올려 서블릿 객체를 만든다
       - 컨트롤러를 테스트하고 싶을 때 실제 서버에 구현한 어플리케이션을 올리지 않고(**실제 서블릿 컨테이너를 사용하지 않고**) 테스트용으로 시뮬레이션하는 것
@@ -356,6 +384,59 @@
       - <img src = "image/k1.png">
 
       - <img src = "image/k2.png">
+
+      ``` java
+      // 요약 코드
+      // Dto
+      @Getter
+      @AllArgsConstructor
+      @NoArgsConstructor
+      public class KakaoApiResponseDto {
+
+        @JsonProperty("meta")
+        private MetaDto metaDto;
+
+        @JsonProperty("documents")
+        private List<DocumentDto> documentList;
+
+
+        // Service
+        @Slf4j
+        @Service
+        public class KakaoUriBuilderService {
+
+          private static final String KAKAO_LOCAL_SEARCH_ADDRESS_URL = "https://dapi.kakao.com/v2/local/search/address.json";
+
+          private static final String KAKAO_LOCAL_CATEGORY_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/category.json";
+
+          public URI builderUriByAddressSearch(String address){
+            UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(KAKAO_LOCAL_SEARCH_ADDRESS_URL);
+          uriBuilder.queryParam("query", address);    //쿼리 파라미터 생성
+          URI uri = uriBuilder.build().encode().toUri();
+
+          log.info("address : {}, URI : {}",address,uri);
+
+          return uri;
+        }
+        public URI buildUriByCategorySearch(double latitude, double longitude, double radius, String category) {
+
+          double meterRadius = radius * 1000;
+
+          UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(KAKAO_LOCAL_CATEGORY_SEARCH_URL);
+          uriBuilder.queryParam("category_group_code", category);
+          uriBuilder.queryParam("x", longitude);
+          uriBuilder.queryParam("y", latitude);
+          uriBuilder.queryParam("radius", meterRadius);
+          uriBuilder.queryParam("sort","distance");
+
+          URI uri = uriBuilder.build().encode().toUri();
+
+          log.info("[KakaoAddressSearchService buildUriByCategorySearch] uri: {} ", uri);
+
+          return uri;
+        }
+      }
+      ```
 
   - ### Build
     - `jar`파일을 `build`하는 과정에서 전체 Test코드 또한 검증해 준다
