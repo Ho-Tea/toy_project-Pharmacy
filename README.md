@@ -184,7 +184,34 @@
       ```
 
   - ### Mock
-    - Mockito : Mock객체를 쉽게 만들고, 관리하고, 검증할 수 있는 방법을 제공하는 프레임워크.
+    - **Mockito** : Mock객체를 쉽게 만들고, 관리하고, 검증할 수 있는 방법을 제공하는 프레임워크.
+      - **Spring Boot Test에서의 테스트 더블 => Mockito**
+        - **테스트 더블이란?**
+          - **테스트를 진행하기 어려운 경우** **테스트**를 대신 진행할 수 있게 만드는 객체를 말합니다.
+          - Mock 객체의 상위호환으로 생각하시면 됩니다.
+
+      - Mock 객체를 만드는 방법을 통일하여 사용방법이 단순합니다 
+      - Mockito는 다음과 같은 동작들을 할 수 있습니다.
+        - `Mock만들기(CreateMock)`
+        - `Mock의 동작 지정(Stub)`
+        - `Mock의 사용(Excercise)`
+        - `검증(Verify)`
+
+    - **@Mock** 과 **@MockBean**
+      - Mock 객체를 선언할때 쓰이는 어노테이션
+      - Spring의 `ApplicationContext`에 `Mock` 객체들을 넣어줍니다.
+      - **@Mock**
+        - `import org.mockito.Mock`
+          ``` java
+          //Mock 만들기
+          @Mock
+          List mockedList;
+          ```
+      - **@MockBean**
+        - `import org.springframework.boot.test.mock.mockito.MockBean` => **스프링 테스트에서 지원**
+        => Spring Boot Container가 테스트 시에 필요하고,<br> Bean이 Container에 존재한다면 `@MockBean`을 사용하고 <br> 아닌 경우에는 `@Mock`을 사용합니다.
+
+ 
     - 실제 객체를 만들어 사용하기에 시간, 비용등의 Cost가 높거나 혹은 객체 서로간의 의존성이 강해<br> 구현하기 힘들 경우 가짜객체를 만들어 사용하는 방법이다
     - `private PharmacySearchService pharmacySearchService = Mock()`
 
@@ -245,8 +272,42 @@
       - 컨트롤러를 테스트하고 싶을 때 실제 서버에 구현한 어플리케이션을 올리지 않고(**실제 서블릿 컨테이너를 사용하지 않고**) 테스트용으로 시뮬레이션하는 것
       - 매번 직접 서버를 띄우고 브라우저를 통해서 테스트하지 않고 테스트 코드를 통해 검증 가능
       - 웹 환경에서 컨트롤러를 테스트하려면 서블릿 컨테이너가 구동되고 `DispatcherServlet`객체가 메모리에 올라가야 한다. <br> 이때 서블릿 컨테이너를 모킹하면 실제 서블릿 컨테이너가 아닌 테스트 모형 컨테이너를 사용해서 간단하게 컨트롤러를 테스트 할 수 있다
+      - 테스트하려는 객체가 복잡한 의존성을 가지고 있을 때, 모킹한 객체를 이용하면, <br>**의존성을 단절시킬 수 있어서 쉽게 테스트할 수 있다**
+      - 웹 애플리케이션에서 컨트롤러를 테스트할 때, 서블릿 컨테이너를 모킹하기 위해서는<br> `@WebMvcTest`를 사용하거나 `@AutoConfigureMockMvc`를 사용하면 된다
+      - ### `@WebMvcTest`
+        - `@Controller`, `@RestController`가 설정된 클래스들을 찾아 메모리에 생성한다. 
+        - `@Service`나 `@Repository`가 붙은 객체들은 테스트 대상이 아닌 것으로 처리되기 때문에 생성되지 않는다.
+        - `@WebMvcTest`가 설정된 테스트 케이스에서는 서블릿 컨테이너를 모킹한 `MockMvc`타입의 객체를 <br>**목업**(모킹한 객체를 메모리에서 얻는 과정)하여 컨트롤러에 대한 테스트코드를 작성할 수 있다
+        - `@WebMvcTest` 어노테이션을 사용하면 MVC 관련 설정인 `@Controller`, `@ControllerAdvice`, `@JsonComponent`와 Filter, WebMvcConfigurer,  HandlerMethodArgumentResolver만 로드되기 때문에, <br>실제 구동되는 애플리케이션과 똑같이 컨텍스트를 로드하는 `@SpringBootTest`(모든 빈들을 로드) 어노테이션보다 가볍게 테스트 할 수 있다.
+          ``` java
+          @RunWith(SpringRunner.class)
+          @WebMvcTest
+          public class BoardControllerTest {
+            @Autowired
+            private MockMvc mockMvc;
+            // 웹 API를 테스트할 떄 사용한다.
+            // 스프링 MVC 테스트의 시작점이다.
+            // 이 클래스를 통해 HTTP GET, POST 등에 대한 API 테스트를 할 수 있다.
 
-        ``` java
+            @Test
+            public void testHello() throws Exception {
+              mockMvc.perform(get("/hello").param("name","둘리"))
+              .andExpect(status().isOk())
+            }
+          }
+          ```
+      - ### `@AutoConfigureMockMvc`
+        - `@AutoConfigureMockMvc`는 `@WebMvcTest`와 비슷하게 사용할 수 있는 어노테이션이다.
+        - `@SpringBootTest`에는 웹 애플리케이션 테스트를 지원하는 webEnvironment 속성이 있다. <br>이 속성을 생략하면 기본값으로 WebEnvironment.MOCK이 설정되어 있는데, **이 설정에 의해서 서블릿 컨테이너가 모킹된다.**
+        - `@SpringBootTest(webEnvironment=WebEnvironment.MOCK)` 설정으로 모킹한 객체를 **의존성 주입**받으려면 `@AutoCOnfigureMockMvc`를 클래스 위에 추가 해야한다.
+        - `@WebMvcTest`와 가장 큰 차이점은 컨트롤러뿐만 아니라 테스트 대상이 아닌 `@Service`나 `@Repository`가 붙은 객체들도 모두 메모리에 올린다는 것이다.
+        - **간단하게 테스트하기 위해서는 `@AutoConfigureMockMvc`가 아닌 `@WebMvcTest`를 사용해야 한다.**
+        - `@WebMvcTest`는 `@SpringBootTest`와 같이 사용될 수 없다. 왜냐하면 **각자 서로의 MockMvc를 모킹하기 때문에 충돌이 발생하기 때문이다.**
+
+        <br/>
+
+
+      ``` java
 
         class FormControllerTest extends Specification {
 
@@ -304,7 +365,7 @@
                 .andDo(print())
           }
         }
-        ```
+      ```
 
 
   - ### Stub
